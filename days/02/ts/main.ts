@@ -4,35 +4,44 @@ import path from "node:path";
 const ROCK = "rock";
 const PAPER = "paper";
 const SCISSORS = "scissors";
+type Shape = typeof ROCK | typeof PAPER | typeof SCISSORS;
 
-const shapes = {
+const shapes: Record<string, Shape> = {
   A: ROCK,
   B: PAPER,
   C: SCISSORS,
 };
 
-const choices = {
-  X: ROCK,
-  Y: PAPER,
-  Z: SCISSORS,
+type ShapeKey = keyof typeof shapes;
+
+const shapeLosers: Record<ShapeKey, Shape> = {
+  [shapes.B]: shapes.A,
+  [shapes.C]: shapes.B,
+  [shapes.A]: shapes.C,
 };
 
-const shapeAntagonist = {
-  [shapes.A]: [choices.Y],
-  [shapes.B]: [choices.Z],
-  [shapes.C]: [choices.X],
+const shapeWinners = {
+  [shapes.A]: shapes.B,
+  [shapes.B]: shapes.C,
+  [shapes.C]: shapes.A,
 };
 
 const scoreMap = {
-  [choices.X]: 1,
-  [choices.Y]: 2,
-  [choices.Z]: 3,
+  [shapes.A]: 1,
+  [shapes.B]: 2,
+  [shapes.C]: 3,
 };
 
-const WIN = 1;
-const LOSE = -1;
-const DRAW = 0;
-type Result = typeof WIN | typeof LOSE | typeof DRAW;
+const WIN = "Z";
+const DRAW = "Y";
+const LOSE = "X";
+type Result = typeof WIN | typeof DRAW | typeof LOSE;
+
+const results = {
+  [WIN]: "win",
+  [DRAW]: "draw",
+  [LOSE]: "lose",
+};
 
 const resultScore = {
   [WIN]: 6,
@@ -40,18 +49,38 @@ const resultScore = {
   [DRAW]: 3,
 };
 
-type OppShape = keyof typeof shapes;
-type ChoiceShape = keyof typeof choices;
+type ResultKey = keyof typeof results;
 
 function calculateRound(
-  oppShape: OppShape,
-  choice: ChoiceShape
-): [win: Result, score: number] {
-  const opposites = shapeAntagonist[shapes[oppShape]];
-  const win = opposites.includes(choices[choice]);
-  const result = win ? 1 : choices[choice] == shapes[oppShape] ? 0 : -1;
-  const value = scoreMap[choices[choice]] + resultScore[result];
-  return [result, value];
+  opponentShapeKey: ShapeKey,
+  desiredResultKey: ResultKey
+): [score: number] {
+  let opponentShape = shapes[opponentShapeKey];
+  let playerShape: Shape;
+  switch (desiredResultKey) {
+    case WIN: {
+      playerShape = shapeWinners[opponentShape];
+      break;
+    }
+    case DRAW: {
+      playerShape = shapes[opponentShapeKey];
+      break;
+    }
+    case LOSE: {
+      playerShape = shapeLosers[opponentShape];
+      break;
+    }
+    default: {
+      throw new Error("desired result not defined");
+    }
+  }
+  const roundResultScore = resultScore[desiredResultKey];
+  const roundShapeScore = scoreMap[playerShape];
+  let score = roundResultScore + roundShapeScore;
+  // console.log(
+  //   `op: ${opponentShape}; r: ${desiredResultKey}; score: ${score}; ress: ${roundResultScore}; shapes: ${roundShapeScore}`
+  // );
+  return [score];
 }
 
 async function main() {
@@ -59,12 +88,13 @@ async function main() {
   const file = await fs.open(datapath);
 
   let pointTotal = 0;
-  const record = [] as Result[];
 
   for await (const line of file.readLines()) {
-    const [opponentShape, choice] = line.split(" ") as [OppShape, ChoiceShape];
-    const [win, score] = calculateRound(opponentShape, choice);
-    record.push(win);
+    const [opponentShape, desiredResultKey] = line.split(" ") as [
+      ShapeKey,
+      Result
+    ];
+    const [score] = calculateRound(opponentShape, desiredResultKey);
     pointTotal += score;
   }
 
