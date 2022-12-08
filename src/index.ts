@@ -20,11 +20,36 @@ class Directory {
     this.name = name;
     this.children = new Map();
   }
+  pathname() {
+    let path_collector: String[] = [];
+    let curr = this.parent;
+    while (curr) {
+      let name = curr.name;
+      if (name === "/") {
+        name = "";
+      }
+      path_collector.push(name);
+      curr = curr.parent;
+    }
+    return path_collector.length > 1 ? path_collector.reverse().join("/") : "/";
+  }
   isDir(): this is Directory {
     return this instanceof Directory;
   }
   isFile(): this is File {
     return this instanceof File;
+  }
+  size() {
+    let total = 0;
+    for (let child of this.children.values()) {
+      if (child.isFile()) {
+        total += child.size;
+      } else if (child.isDir()) {
+        let sub = child.size();
+        total += sub;
+      }
+    }
+    return total;
   }
   cd(path: String): Directory {
     if (path == "/" && !this.parent) {
@@ -62,7 +87,15 @@ class Directory {
     f.size = size;
     this.children.set(name, f);
   }
-  static walk(dir: Directory) {}
+}
+
+function visit<T extends File | Directory>(node: T, visitor: (n: T) => void) {
+  visitor(node);
+  if (node.isDir()) {
+    for (let child of node.children.values()) {
+      visit(child as T, visitor);
+    }
+  }
 }
 
 async function buildTreeFromFileHandle(file: Promise<fs.FileHandle>) {
@@ -116,11 +149,33 @@ async function part_one() {
   const file = fs.open(path.resolve(__dirname, "../data", "d07.txt"));
   const dir = await buildTreeFromFileHandle(file);
 
-  console.dir({ dir });
+  let total;
+
+  visit(dir, (n) => {
+    if (n.isDir()) {
+      const size = n.size();
+      if (size >= 100_000) {
+        let isLarge = true;
+        for (let child of n.children.values()) {
+          if (child.isDir() && child.size() >= 100_000) {
+            isLarge = false;
+          }
+        }
+        if (isLarge) {
+          console.log("directory larger than threshold");
+          console.dir({ path: n.pathname(), size });
+          total += size;
+        }
+      }
+    }
+  });
+
+  return total;
 }
 
 async function main() {
-  await part_one();
+  let total = await part_one();
+  console.log(`part 1 total: ${total}`);
 }
 
 main()
